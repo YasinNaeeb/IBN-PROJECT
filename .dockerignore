@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.encryption_key
+*.db
+*.sqlite
+models/ibn_dleberta/
+Dataset/
+*.zip
+venv/
+.venv/

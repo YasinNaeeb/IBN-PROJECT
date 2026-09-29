@@ -1,0 +1,64 @@
+version: "3.9"
+
+# IBN ChatOps — full stack: engine (FastAPI) + dashboard (Flask) + bot (Telegram)
+#
+# Usage:
+#   1. cp .env.example .env   and fill it in (see README)
+#   2. Put your trained model in ./models/ibn_dleberta (mounted read-only below)
+#   3. docker compose up --build
+#
+# The dashboard and bot talk to the engine over the internal Docker network
+# using the service name "engine" — not 127.0.0.1 — which is why config.py
+# now reads API_HOST/API_URL from the environment instead of hardcoding it.
+
+services:
+  engine:
+    build: .
+    command: >
+      python -m uvicorn core.engine:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    volumes:
+      - ./models:/app/models:ro
+      - ibn_data:/app/data
+    environment:
+      - DB_PATH=/app/data/ibn_chatops.db
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    build: .
+    command: >
+      python dashboard/app.py
+    env_file: .env
+    depends_on:
+      engine:
+        condition: service_healthy
+    volumes:
+      - ibn_data:/app/data
+    environment:
+      - DB_PATH=/app/data/ibn_chatops.db
+      - API_HOST=engine
+      - API_URL=http://engine:8000
+    ports:
+      - "5000:5000"
+
+  bot:
+    build: .
+    command: >
+      python bot/telegram_bot.py
+    env_file: .env
+    depends_on:
+      engine:
+        condition: service_healthy
+    environment:
+      - API_HOST=engine
+      - API_URL=http://engine:8000
+    restart: unless-stopped
+
+volumes:
+  ibn_data:
